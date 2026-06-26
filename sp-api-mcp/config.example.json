@@ -1,0 +1,37 @@
+{
+  "server_name": "sp-api-mcp",
+  "version": "1.0.0",
+  "account_type": "seller",
+  "marketplace": {
+    "region": "NA",
+    "marketplace_ids": ["ATVPDKIKX0DER"],
+    "endpoint": "https://sellingpartnerapi-na.amazon.com"
+  },
+  "credentials": {
+    "client_id": "amzn1.application-oa2-client.YOUR_CLIENT_ID",
+    "client_secret": "YOUR_CLIENT_SECRET",
+    "refresh_token": "Atzr|YOUR_REFRESH_TOKEN"
+  },
+  "options": {
+    "sandbox_mode": false,
+    "auto_paginate": true,
+    "max_page_results": 100,
+    "max_total_results": 1000,
+    "report_polling_interval_seconds": 15,
+    "report_polling_timeout_seconds": 300,
+    "enable_rdt_for_pii": true,
+    "log_level": "info"
+  },
+  "enabled_api_groups": [
+    "orders",
+    "catalog",
+    "pricing",
+    "reports",
+    "feeds",
+    "fba_inventory",
+    "notifications",
+    "listings",
+    "finances",
+    "sales"
+  ]
+}
