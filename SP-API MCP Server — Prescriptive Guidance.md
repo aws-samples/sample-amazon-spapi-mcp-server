@@ -373,21 +373,52 @@ The SP-API MCP server provides access to 51 APIs organized by account type:
 
 ## Implementation strategy
 
-### Step 1: Set up the MCP server locally
-
-Install dependencies and build the TypeScript project:
+### Step 1: Clone the repository
 
 ```bash
-git clone <repository-url>
-cd sp-api-mcp
+# Clone from code.aws.dev
+git clone git@ssh.code.aws.dev:personal_projects/alias_m/mggona/amazon_selling_partner_mcp_server.git
+
+# Navigate into the project
+cd amazon_selling_partner_mcp_server/sp-api-mcp
+```
+
+> **Note:** If you don't have SSH access to code.aws.dev, ensure your Midway-signed SSH key is configured. Run `mwinit -s --fido2` to authenticate, then retry the clone.
+
+### Step 2: Install dependencies and build
+
+```bash
+# Install Node.js dependencies
 npm install
+
+# Build the TypeScript project
 npm run build
 ```
 
-Configure your credentials in `config.json`:
+Verify the build succeeded:
+```bash
+ls dist/index.js   # Should show the compiled entry point
+```
+
+### Step 3: Configure the server
+
+For **mock mode testing** (no credentials needed):
+```bash
+# The example config is ready to use — no edits required
+cat config.example.json
+```
+
+For **real SP-API access**, create your own config:
+```bash
+cp config.example.json config.json
+```
+
+Edit `config.json` with your credentials:
 
 ```json
 {
+  "server_name": "sp-api-mcp",
+  "version": "1.0.0",
   "account_type": "seller",
   "marketplace": {
     "region": "NA",
@@ -402,50 +433,65 @@ Configure your credentials in `config.json`:
   "options": {
     "sandbox_mode": true,
     "auto_paginate": true,
-    "max_total_results": 1000
+    "max_total_results": 1000,
+    "log_level": "info"
   }
 }
 ```
 
-### Step 2: Validate with mock mode
+> **Security:** Never commit `config.json` to version control. It's in `.gitignore` by default.
 
-Test without credentials to verify the MCP protocol integration:
+### Step 4: Validate with mock mode
+
+Test without credentials to verify the MCP protocol and tool discovery work:
 
 ```bash
+# Start server in mock mode
 node dist/index.js --config ./config.example.json --mode local --mock
 ```
 
-Register with Amazon Quick Desktop:
-- Settings → Capabilities → MCP → + Add MCP → Local
-- Command: `node`
-- Arguments: `/path/to/sp-api-mcp/dist/index.js --config /path/to/config.json --mode local --mock`
+Or run a quick smoke test via pipe:
+```bash
+echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}' \
+| node dist/index.js --config ./config.example.json --mode local --mock 2>/dev/null
+```
 
-Verify tools appear (105 for seller, 58 for vendor, 121 for both).
+You should see a valid MCP handshake response confirming the server is operational.
 
-### Step 3: Connect to SP-API sandbox
+### Step 5: Register with Amazon Quick Desktop
+
+1. Open Amazon Quick Desktop
+2. Go to **Settings → Capabilities → MCP tab**
+3. Click **+ Add MCP** → select **Local**
+4. Configure:
+
+   | Field | Value |
+   |-------|-------|
+   | **Name** | `SP-API MCP Server` |
+   | **Command** | `node` |
+   | **Arguments** | `/path/to/sp-api-mcp/dist/index.js --config /path/to/sp-api-mcp/config.example.json --mode local --mock` |
+   | **Timeout** | `30` |
+
+   > **Important:** Use paths without spaces. If your project folder has spaces, create a symlink: `ln -sfn "/path/with spaces/sp-api-mcp" ~/sp-api-mcp` and use `~/sp-api-mcp/...` in the arguments.
+
+5. Click **+ Add MCP** to save
+6. Verify the server shows **105 tools** (seller mode) or **121 tools** (both mode)
+
+### Step 6: Connect to SP-API sandbox
 
 Switch from mock mode to sandbox:
 1. Obtain SP-API developer credentials (client_id, client_secret, refresh_token)
 2. Set `"sandbox_mode": true` in config.json
-3. Remove `--mock` from the server arguments
+3. Remove `--mock` from the server arguments in Quick settings
 4. Test against sandbox endpoints which return canned responses without affecting production
 
-### Step 4: Enable production access
+### Step 7: Enable production access
 
 Set `"sandbox_mode": false` and test with real selling partner data. The server handles:
 - Automatic token refresh (5 minutes before expiry)
 - Rate limiting per API domain (queue-before-fail)
 - Exponential backoff on transient errors (429, 5xx)
 - Structured error responses with suggested recovery actions
-
-### Step 5: Deploy to AWS (Phase 2)
-
-For multi-user or enterprise scenarios:
-1. Add SSE transport layer (same core code, swap transport module)
-2. Deploy to ECS Fargate behind API Gateway
-3. Store credentials in AWS Secrets Manager (per-tenant)
-4. Configure CloudWatch logging and X-Ray tracing
-5. Set up auto-scaling based on active connection count
 
 ---
 
@@ -512,6 +558,185 @@ User: "Generate my weekly inventory health report"
 Agent: → spapi_reports_create_and_download (reportType="GET_FBA_MYI_UNSUPPRESSED_INVENTORY_DATA")
        → returns parsed report data
 ```
+
+---
+
+## Example responses from Amazon Quick
+
+The following examples show what you see in Amazon Quick Desktop when interacting with the SP-API MCP server. These use mock mode data to illustrate the experience.
+
+### Example 1: "Show me my recent orders"
+
+**What Quick does:** Calls `spapi_orders_get_orders` with date filter
+
+**Response in Quick:**
+
+> Here are your recent orders:
+>
+> | Order ID | Date | Status | Channel | Total |
+> |----------|------|--------|---------|-------|
+> | 111-1234567-1234567 | Jun 20, 2026 | Shipped | FBA | $49.99 |
+> | 111-7654321-7654321 | Jun 19, 2026 | Unshipped | MFN | $129.95 |
+> | 111-9999999-0000001 | Jun 18, 2026 | Shipped | FBA | $24.99 |
+>
+> You have **3 orders** in the last 7 days. 2 shipped, 1 still unshipped (MFN — needs fulfillment).
+
+---
+
+### Example 2: "What's my FBA inventory?"
+
+**What Quick does:** Calls `spapi_fba_inventory_get_summaries`
+
+**Response in Quick:**
+
+> Here's your current FBA inventory:
+>
+> | SKU | Product | Fulfillable | Inbound | Reserved |
+> |-----|---------|-------------|---------|----------|
+> | SKU-WIDGET-001 | Premium Widget Pro - Blue | 150 | 50 working, 25 shipped | 10 |
+> | SKU-GADGET-002 | Gadget Accessory Pack | 320 | 0 working, 100 shipped | 5 |
+>
+> Both SKUs are well-stocked. SKU-WIDGET-001 has 75 units inbound (50 in working status + 25 shipped to FC).
+
+---
+
+### Example 3: "Am I winning the Buy Box for ASIN B08N5WRWNW?"
+
+**What Quick does:** Calls `spapi_pricing_get_competitive_pricing` with the ASIN
+
+**Response in Quick:**
+
+> **Buy Box Status for B08N5WRWNW (Premium Widget Pro - Blue):**
+>
+> ✅ **Yes, you're winning the Buy Box**
+>
+> - Your price: **$19.99** (New)
+> - Number of competing offers: **5**
+> - Landed price: $19.99
+>
+> You're the current Buy Box winner. There are 4 other sellers competing on this ASIN.
+
+---
+
+### Example 4: "Show me the items in order 111-1234567-1234567"
+
+**What Quick does:** Calls `spapi_orders_get_order_items` with the order ID
+
+**Response in Quick:**
+
+> **Order 111-1234567-1234567 — Line Items:**
+>
+> | # | ASIN | Product | Qty | Price | Tax |
+> |---|------|---------|-----|-------|-----|
+> | 1 | B08N5WRWNW | Premium Widget Pro - Blue | 2 | $39.98 | $3.60 |
+> | 2 | B09K3LXYZ1 | Gadget Accessory Pack | 1 | $10.01 | $0.90 |
+>
+> **Total:** $49.99 + $4.50 tax = **$54.49**
+
+---
+
+### Example 5: "What are my sales metrics this week?"
+
+**What Quick does:** Calls `spapi_sales_get_order_metrics` with weekly interval
+
+**Response in Quick:**
+
+> **Sales Summary (Jun 15–22, 2026):**
+>
+> | Metric | Value |
+> |--------|-------|
+> | Total Revenue | **$1,151.50** |
+> | Units Ordered | 47 |
+> | Orders | 38 |
+> | Avg. Unit Price | $24.50 |
+>
+> Revenue is tracking well this week — 38 orders with an average cart value of ~$30.
+
+---
+
+### Example 6: "Show me my financial transactions from June"
+
+**What Quick does:** Calls `spapi_finances_list_transactions` with date range
+
+**Response in Quick:**
+
+> **Financial Transactions (June 2026):**
+>
+> | Date | Type | Description | Amount |
+> |------|------|-------------|--------|
+> | Jun 20 | Order | Order payment: 111-1234567-1234567 | +$49.99 |
+> | Jun 19 | Refund | Refund: 111-5555555-5555555 | -$24.99 |
+> | Jun 18 | Fee | FBA fee | -$3.75 |
+>
+> **Net:** +$21.25 across 3 transactions shown.
+
+---
+
+### Example 7: "Show me pending vendor purchase orders" (Vendor mode)
+
+**What Quick does:** Calls `spapi_vendor_orders_get_purchase_orders` with status filter
+
+**Response in Quick:**
+
+> **Pending Vendor Purchase Orders:**
+>
+> | PO Number | Date | Status | Items | Total Units |
+> |-----------|------|--------|-------|-------------|
+> | PO-2026-001234 | Jun 18, 2026 | New | B08N5WRWNW | 500 @ $5.00/ea |
+> | PO-2026-001235 | Jun 15, 2026 | Acknowledged | B09K3LXYZ1 | 200 @ $8.50/ea |
+>
+> You have **1 new PO** that needs acknowledgement (PO-2026-001234 for 500 units). Would you like me to accept it?
+
+---
+
+### Example 8: "Check the server health"
+
+**What Quick does:** Calls `spapi_health_check`
+
+**Response in Quick:**
+
+> **SP-API MCP Server Health:**
+>
+> | Component | Status |
+> |-----------|--------|
+> | Server | ✅ Healthy |
+> | Authentication | ✅ Valid (expires in 3600s) |
+> | Rate Limits | All clear — no queued requests |
+>
+> Everything is operational. Token is valid for another 60 minutes.
+
+---
+
+### Example 9: "Search the catalog for wireless earbuds"
+
+**What Quick does:** Calls `spapi_catalog_search_items` with keywords
+
+**Response in Quick:**
+
+> **Catalog Search Results for "wireless earbuds":**
+>
+> | ASIN | Product | Brand | Type |
+> |------|---------|-------|------|
+> | B08N5WRWNW | Premium Widget Pro - Blue | WidgetCo | WIDGET |
+> | B09K3LXYZ1 | Gadget Accessory Pack | GadgetCorp | ACCESSORY |
+>
+> Found 2 matching items. Want me to get detailed info for any of these ASINs?
+
+---
+
+### Example 10: Error handling — "Show me vendor purchase orders" (in Seller mode)
+
+**What Quick does:** Tries to call `spapi_vendor_orders_get_purchase_orders` but account is configured as seller-only
+
+**Response in Quick:**
+
+> ⚠️ **Tool not available for your account type**
+>
+> The vendor purchase orders tool is only available for vendor or "both" account types. Your current configuration is set to **seller** mode.
+>
+> **To fix:** Update your config.json to `"account_type": "both"` if you have both seller and vendor accounts, or switch to a vendor-configured MCP server.
+>
+> You can check your current configuration by asking me "What's my account type?"
 
 ---
 
