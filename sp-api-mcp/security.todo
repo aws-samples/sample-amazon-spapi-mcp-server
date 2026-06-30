@@ -1,0 +1,166 @@
+# Security Review — SP-API MCP Server
+# Reviewed against: AWS Security Best Practices Steering Document
+# Workload tier: Prototype / POC (Phase 1 — Local Deployment)
+# Date: June 2026
+# Reviewer: Automated
+
+---
+
+## Summary
+
+| Priority | Count | Status |
+|----------|-------|--------|
+| Critical | 0 | ✅ None |
+| High | 0 | ✅ None |
+| Medium | 3 | Deferred per POC applicability |
+| Low | 5 | Deferred per POC applicability |
+
+**Publication gate: PASS** — Zero Critical or High severity findings.
+
+---
+
+## Applicability Note
+
+This project is currently a **Prototype / POC** (Phase 1 — local deployment on user's machine). Per the steering document, the following are deferred:
+
+- PrivateLink / VPC endpoints (no AWS infrastructure in Phase 1)
+- AgentCore Identity (local stdio transport, ambient credentials acceptable)
+- AgentCore Observability (basic stderr logging is sufficient)
+- VPC Flow Logs, Config rules (no VPC in Phase 1)
+- Automated prompt-validation test suites (no direct LLM invocation by this server)
+- SigV4 for multi-agent calls (single-agent local mode)
+- Tagging, centralized logging, change-set policies (no IaC deployment yet)
+
+When this prototype moves to Phase 3 (AWS cloud deployment), all deferred items must be closed.
+
+---
+
+## ✅ Controls Satisfied
+
+### Credentials & Secrets
+- [x] No hardcoded credentials in source code
+- [x] Credentials loaded from external config.json (file-permission restricted)
+- [x] config.json is in .gitignore — never committed to version control
+- [x] Refresh token used for short-lived access token acquisition via STS-like LWA flow
+- [x] Token auto-refresh before expiry (5-minute buffer)
+- [x] Credentials never logged to stdout/stderr
+- [x] Credentials never returned in MCP tool responses (spapi_get_config is sanitized)
+- [x] Error responses sanitized — only return error codes and request IDs, not raw API bodies
+
+### Data Protection
+- [x] TLS 1.2+ explicitly enforced via Node.js https.Agent (minVersion: "TLSv1.2")
+- [x] All SP-API communication over HTTPS — no plaintext HTTP
+- [x] PII gated behind Restricted Data Tokens (RDT) — not returned by default
+- [x] Input validation via Zod schemas on all tool parameters before API invocation
+- [x] Path parameter validators prevent traversal characters (../ \)
+
+### Dependencies & Supply Chain
+- [x] npm audit: 0 known vulnerabilities
+- [x] Minimal dependency footprint (5 production dependencies)
+- [x] Dependencies use semver ranges limited to minor/patch updates
+- [x] No eval(), exec(), or dynamic code execution anywhere in codebase
+- [x] No prototype pollution vectors (no unsanitized object spreading)
+
+### Authentication
+- [x] OAuth2 token refresh is race-condition safe (promise coalescing pattern)
+- [x] Mock mode blocked when NODE_ENV=production
+- [x] Access tokens stored only in memory — never written to disk
+
+### Rate Limiting & Resilience
+- [x] Per-API-domain rate limiting via Bottleneck (queue-before-fail)
+- [x] Exponential backoff retry (3x) on transient errors (429, 5xx)
+- [x] 30-second HTTP timeout prevents hanging connections
+- [x] Auto-pagination capped at configurable max_total_results (default 1000)
+
+### Access Control
+- [x] Account-type filtering: vendor tools inaccessible in seller mode and vice versa
+- [x] Tool lookup validates visibility before execution
+- [x] Structured error with suggested action returned for unauthorized tool access
+
+---
+
+## ⚠️ Medium Priority — Close Before Production (Phase 3)
+
+### M1: Credentials should move to AWS Secrets Manager
+- **Control:** Credentials & Secrets — Use Secrets Manager or SSM Parameter Store
+- **Current state:** Credentials stored in local config.json file
+- **Gap:** Local file storage is acceptable for POC but not for multi-user/cloud deployment
+- **Files to update:** `src/auth/aws-provider.ts` (to be created in Phase 3)
+- **Fix:** Implement AWS Secrets Manager credential provider that reads per-tenant secrets
+
+### M2: No CloudTrail / CloudWatch logging
+- **Control:** Logging & Monitoring — Enable CloudTrail, CloudWatch alarms
+- **Current state:** Logging is stderr-only via Pino (local consumption)
+- **Gap:** No centralized, auditable log trail for API calls or auth events
+- **Files to update:** `src/utils/logger.ts`, new `src/observability/` module
+- **Fix:** Add CloudWatch Logs integration in Phase 3 ECS deployment; structured audit events for tool invocations
+
+### M3: No Infrastructure as Code
+- **Control:** IaC — Define all infrastructure in code
+- **Current state:** Phase 1 has no AWS infrastructure (local only)
+- **Gap:** Phase 3 deployment will need CDK/CloudFormation for ECS, API Gateway, Secrets Manager
+- **Files to update:** New `infra/` directory with CDK stack
+- **Fix:** Create CDK stack before Phase 3 deployment; scan with cfn-lint and checkov
+
+---
+
+## 📋 Low Priority — Production Hardening (Phase 3+)
+
+### L1: VPC endpoints for AWS service access
+- **Control:** Networking — Use VPC endpoints to avoid public internet
+- **Current state:** Local deployment makes no AWS service calls (only SP-API over public HTTPS)
+- **Gap:** Phase 3 ECS deployment should use VPC endpoints for Secrets Manager access
+- **Deferred per:** POC applicability — PrivateLink optional for prototypes
+- **Files to update:** `infra/vpc-stack.ts` (to be created)
+
+### L2: Container security hardening
+- **Control:** Containers — Non-root users, read-only filesystems, minimal base images
+- **Current state:** No container (runs as local Node.js subprocess)
+- **Gap:** Phase 3 ECS Fargate task definition should specify non-root user and read-only root FS
+- **Deferred per:** POC applicability
+- **Files to update:** `infra/task-definition.ts` (to be created)
+
+### L3: Resource tagging
+- **Control:** IaC — Tag all resources with owner, environment, cost-center
+- **Current state:** No AWS resources to tag
+- **Gap:** Phase 3 resources need consistent tagging
+- **Deferred per:** POC applicability — tagging deferred for prototypes
+- **Files to update:** `infra/` CDK constructs
+
+### L4: Bedrock Guardrails (if AI integration added)
+- **Control:** AI Workloads — Deploy Bedrock Guardrails on all invocations
+- **Current state:** This server is a tool provider, not an LLM invoker. No direct Bedrock calls.
+- **Gap:** If future phases add Bedrock for response formatting or summarization, guardrails needed
+- **Deferred per:** Not applicable to current scope — server provides tools to an external AI agent
+- **Note:** The AI agent (Amazon Quick) is responsible for its own guardrails; this server only returns raw SP-API data
+
+### L5: Automated security scanning in CI/CD
+- **Control:** Post-Build Security Review — generate/update security.todo
+- **Current state:** Manual review (this file)
+- **Gap:** No automated CI pipeline running npm audit, dependency checks, or static analysis
+- **Files to update:** `.github/workflows/security.yml` or `buildspec.yml` (to be created)
+- **Fix:** Add CI step that runs `npm audit`, `eslint --security-plugin`, and generates this file
+
+---
+
+## Not Applicable to This Project
+
+| Control | Reason |
+|---------|--------|
+| Lambda & Serverless | No Lambda functions in Phase 1 |
+| ECS/EKS container security | No containers in Phase 1 (local subprocess) |
+| S3 bucket policies | No S3 usage |
+| RDS/DynamoDB encryption | No database |
+| VPC Flow Logs | No VPC |
+| AWS Config rules | No AWS resources to track |
+| AgentCore Identity | Local stdio transport; no multi-agent system |
+| AgentCore Observability | Not using AgentCore runtime |
+| Multi-agent SigV4 signing | Single server, no agent-to-agent calls |
+| Prompt-validation test suites | Server is a tool provider, not an LLM — no prompts to validate |
+| Bedrock model invocation logging | No direct Bedrock calls from this server |
+
+---
+
+## Conclusion
+
+The SP-API MCP Server passes the publication gate with **zero Critical and zero High severity findings**. All controls relevant to a Prototype/POC workload are satisfied. Medium and Low items are clearly documented with remediation paths for when the project progresses to production deployment (Phase 3).
