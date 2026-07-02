@@ -14,7 +14,7 @@ export function createDataKioskTools(client: SpApiClient, config: ServerConfig):
     {
       name: "spapi_data_kiosk_create_query",
       description:
-        "Submit a GraphQL analytics query to Data Kiosk. Supports sales, traffic, inventory, and brand analytics. Async operation — use get_query to check status. Rate limit: 0.0222 requests/sec (burst of 10).",
+        "Submit a GraphQL analytics query to the SP-API Data Kiosk service (no local file system access). Supports sales, traffic, inventory, and brand analytics. This is a remote API call that queues a query on Amazon's servers — async operation, use get_query to check status. Rate limit: 0.0222 requests/sec (burst of 10).",
       scope: "shared",
       apiDomain: "data-kiosk",
       inputSchema: {
@@ -96,7 +96,7 @@ export function createDataKioskTools(client: SpApiClient, config: ServerConfig):
     {
       name: "spapi_data_kiosk_create_query_and_download",
       description:
-        "Composite tool: Submit a GraphQL query, poll until completion, and return the result document URL. Timeout: 5 minutes.",
+        "Composite tool: Submit a GraphQL analytics query to SP-API Data Kiosk, poll until completion, and return the result document URL (no local file system access — all operations are remote API calls). Timeout: 5 minutes.",
       scope: "shared",
       apiDomain: "data-kiosk",
       inputSchema: {

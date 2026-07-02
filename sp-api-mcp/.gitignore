@@ -5,3 +5,5 @@ config.json
 *.log
 .DS_Store
 coverage/
+scan-results/
+licenses.csv

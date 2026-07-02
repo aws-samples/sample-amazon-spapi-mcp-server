@@ -6,7 +6,7 @@ export function createApplicationManagementTools(client: SpApiClient): ToolDefin
     {
       name: "spapi_application_rotate_client_secret",
       description:
-        "Rotate the client secret for an SP-API application. Returns a new client secret. The old secret remains valid for a short period. Rate limit: 0.0167 requests/sec. NOTE: Write operation — rotates credentials.",
+        "⚠️ DESTRUCTIVE: Credential rotation — Rotates the client secret for an SP-API application. This operation generates a new client secret and permanently invalidates the current one after a short grace period. WARNING: After rotation, all systems using the old secret will lose access until updated with the new secret. Returns the new client secret value. Rate limit: 0.0167 requests/sec.",
       scope: "shared",
       apiDomain: "application-management",
       inputSchema: {},
