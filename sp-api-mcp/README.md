@@ -1,5 +1,7 @@
 # SP-API MCP Server
 
+> **⚠️ Disclaimer:** This is a prototype/proof-of-concept and is NOT a production-level application. It is intended for local development, testing, and demonstration purposes only. Do not deploy to production environments without additional security hardening, comprehensive testing, and a full security review.
+
 A Model Context Protocol (MCP) server that provides unified access to all Amazon Selling Partner APIs (SP-APIs). Connect any MCP-compatible AI agent to Seller Central and Vendor Central data through natural language.
 
 ## Features
