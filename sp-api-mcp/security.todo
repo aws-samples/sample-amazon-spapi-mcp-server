@@ -55,7 +55,7 @@ When this prototype moves to Phase 3 (AWS cloud deployment), all deferred items 
 - [x] Path parameter validators prevent traversal characters (../ \)
 
 ### Dependencies & Supply Chain
-- [x] npm audit: 0 known vulnerabilities
+- [x] npm audit --omit=dev: 0 known vulnerabilities in production dependencies
 - [x] Minimal dependency footprint (5 production dependencies)
 - [x] Dependencies use semver ranges limited to minor/patch updates
 - [x] No eval(), exec(), or dynamic code execution anywhere in codebase

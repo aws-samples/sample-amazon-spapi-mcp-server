@@ -2,6 +2,7 @@ import { z } from "zod";
 import { ToolDefinition } from "../base.js";
 import { SpApiClient } from "../../clients/sp-api-client.js";
 import { ServerConfig } from "../../config/schema.js";
+import { requireConfirmation } from "../../utils/destructive-guard.js";
 
 export function createListingsTools(
   client: SpApiClient,
@@ -100,14 +101,22 @@ export function createListingsTools(
     {
       name: "spapi_listings_delete_listings_item",
       description:
-        "Delete a listing for a given SKU. This removes the listing from the marketplace. DESTRUCTIVE OPERATION — cannot be undone. Rate limit: 5 requests/sec (burst of 10).",
+        "⚠️ DESTRUCTIVE: Delete a listing for a given SKU. This permanently removes the listing from the marketplace and cannot be undone. Requires confirm: true to execute. Rate limit: 5 requests/sec (burst of 10).",
       scope: "shared",
       apiDomain: "listings",
       inputSchema: {
         sellerId: z.string().describe("The seller ID"),
         sku: z.string().describe("The seller SKU to delete"),
+        confirm: z.boolean().describe("Must be true to execute this destructive operation"),
       },
       handler: async (params) => {
+        const guard = requireConfirmation(
+          params,
+          "spapi_listings_delete_listings_item",
+          `Deleting listing SKU '${params.sku}' will permanently remove it from the marketplace`
+        );
+        if (!guard.allowed) return guard.error;
+
         const response = await client.delete(
           `/listings/2021-08-01/items/${params.sellerId}/${params.sku}`,
           "listings"

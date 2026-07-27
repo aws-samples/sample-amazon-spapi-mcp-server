@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { ToolDefinition } from "../base.js";
 import { SpApiClient } from "../../clients/sp-api-client.js";
+import { requireConfirmation } from "../../utils/destructive-guard.js";
 
 export function createShippingTools(client: SpApiClient): ToolDefinition[] {
   return [
@@ -108,13 +109,21 @@ export function createShippingTools(client: SpApiClient): ToolDefinition[] {
     {
       name: "spapi_shipping_cancel_shipment",
       description:
-        "Cancel a previously purchased shipping label. DESTRUCTIVE — cannot be undone. Rate limit: 80 requests/sec.",
+        "⚠️ DESTRUCTIVE: Cancel a previously purchased shipping label. This cannot be undone and may affect delivery commitments. Requires confirm: true to execute. Rate limit: 80 requests/sec.",
       scope: "seller",
       apiDomain: "shipping",
       inputSchema: {
         shipmentId: z.string().describe("Shipment ID to cancel"),
+        confirm: z.boolean().describe("Must be true to execute this destructive operation"),
       },
       handler: async (params) => {
+        const guard = requireConfirmation(
+          params,
+          "spapi_shipping_cancel_shipment",
+          `Cancelling shipment '${params.shipmentId}' will void the shipping label and cannot be undone`
+        );
+        if (!guard.allowed) return guard.error;
+
         const response = await client.put(
           `/shipping/v2/shipments/${params.shipmentId}/cancel`,
           {},

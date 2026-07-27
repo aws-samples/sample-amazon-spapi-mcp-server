@@ -2,6 +2,7 @@ import { z } from "zod";
 import { ToolDefinition } from "../base.js";
 import { SpApiClient } from "../../clients/sp-api-client.js";
 import { ServerConfig } from "../../config/schema.js";
+import { requireConfirmation } from "../../utils/destructive-guard.js";
 
 export function createMessagingTools(client: SpApiClient, config: ServerConfig): ToolDefinition[] {
   const marketplaceIds = config.marketplace.marketplace_ids;
@@ -28,7 +29,7 @@ export function createMessagingTools(client: SpApiClient, config: ServerConfig):
     {
       name: "spapi_messaging_send_message",
       description:
-        "Send a message to a buyer for a specific order. Supports various message types like order delivery info, legal disclosures, etc. Rate limit: 1 request/sec. NOTE: Write operation — sends a real message to the buyer.",
+        "⚠️ DESTRUCTIVE: Send a message to a buyer for a specific order. This sends a real email to the customer and cannot be unsent. Requires confirm: true to execute. Supports various message types like order delivery info, legal disclosures, etc. Rate limit: 1 request/sec.",
       scope: "seller",
       apiDomain: "messaging",
       inputSchema: {
@@ -50,8 +51,16 @@ export function createMessagingTools(client: SpApiClient, config: ServerConfig):
           uploadDestinationId: z.string(),
           fileName: z.string(),
         })).optional().describe("Attachments (upload first via Uploads API)"),
+        confirm: z.boolean().describe("Must be true to send a real message to the buyer"),
       },
       handler: async (params) => {
+        const guard = requireConfirmation(
+          params,
+          "spapi_messaging_send_message",
+          `Sending a '${params.messageType}' message to the buyer for order ${params.amazonOrderId}. This sends a real email to the customer.`
+        );
+        if (!guard.allowed) return guard.error;
+
         const endpoint = `/messaging/v1/orders/${params.amazonOrderId}/messages/${params.messageType}`;
         const response = await client.post(
           endpoint,
