@@ -1,93 +1,132 @@
-# amazon_selling_partner_mcp_server
+# SP-API MCP Server
 
+> **⚠️ Disclaimer:** This is a prototype/proof-of-concept and is NOT a production-level application. It is intended for local development, testing, and demonstration purposes only. Do not deploy to production environments without additional security hardening, comprehensive testing, and a full security review.
 
+A Model Context Protocol (MCP) server that provides unified access to all Amazon Selling Partner APIs (SP-APIs). Connect any MCP-compatible AI agent to Seller Central and Vendor Central data through natural language.
 
-## Getting started
+## Features
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
+- **Dual-mode operation** — Seller, Vendor, or Both account types with dynamic tool filtering
+- **Full SP-API coverage** — Orders, Catalog, Pricing, Inventory, Reports, Feeds, Listings, Notifications, Vendor Orders/Shipments/Invoices, and more
+- **Composite tools** — Automatic report polling, feed submission workflows
+- **Rate limiting** — Built-in per-API rate limiting with queue-before-fail strategy
+- **Auto-pagination** — Fetches all pages with configurable safety caps
+- **Error handling** — Structured errors with categories and suggested actions
+- **Retry logic** — Exponential backoff for transient failures (429, 5xx)
 
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
+## Quick Start
 
-## Add your files
+### 1. Install dependencies
 
-* [Create](https://docs.gitlab.com/user/project/repository/web_editor/#create-a-file) or [upload](https://docs.gitlab.com/user/project/repository/web_editor/#upload-a-file) files
-* [Add files using the command line](https://docs.gitlab.com/topics/git/add_files/#add-files-to-a-git-repository) or push an existing Git repository with the following command:
+```bash
+npm install
+```
+
+### 2. Configure
+
+```bash
+cp config.example.json config.json
+# Edit config.json with your SP-API credentials
+```
+
+### 3. Build
+
+```bash
+npm run build
+```
+
+### 4. Run
+
+```bash
+# Local stdio mode (for Amazon Quick / Claude Desktop)
+node dist/index.js --config ./config.json --mode local
+```
+
+### 5. Register with Amazon Quick
+
+Settings → Capabilities → MCP → Add MCP / Skill:
+
+- **Name:** SP-API MCP Server
+- **Transport:** stdio
+- **Command:** `node`
+- **Args:** `["/path/to/sp-api-mcp/dist/index.js", "--config", "/path/to/config.json", "--mode", "local"]`
+
+## Configuration
+
+| Field | Description |
+|-------|-------------|
+| `account_type` | `seller`, `vendor`, or `both` — controls which tools are exposed |
+| `marketplace.region` | `NA`, `EU`, or `FE` |
+| `marketplace.marketplace_ids` | Array of marketplace IDs (e.g., `["ATVPDKIKX0DER"]` for US) |
+| `credentials.client_id` | SP-API application client ID |
+| `credentials.client_secret` | SP-API application client secret |
+| `credentials.refresh_token` | LWA refresh token for the selling partner |
+| `options.sandbox_mode` | `true` for sandbox testing |
+| `options.auto_paginate` | `true` to auto-fetch all pages |
+| `options.max_total_results` | Safety cap for pagination (default: 1000) |
+
+## Tool Naming Convention
 
 ```
-cd existing_repo
-git remote add origin https://code.aws.dev/personal_projects/alias_m/mggona/amazon_selling_partner_mcp_server.git
-git branch -M main
-git push -uf origin main
+spapi_{domain}_{operation}
 ```
 
-## Integrate with your tools
+Examples:
+- `spapi_orders_get_orders` — Get seller orders
+- `spapi_catalog_search_items` — Search the catalog
+- `spapi_vendor_orders_get_purchase_orders` — Get vendor POs
+- `spapi_reports_create_and_download` — Full report lifecycle
 
-* [Set up project integrations](https://code.aws.dev/personal_projects/alias_m/mggona/amazon_selling_partner_mcp_server/-/settings/integrations)
+## Available Tools (by account type)
 
-## Collaborate with your team
+### Seller + Shared (~30 tools in current build)
+- Orders (get_orders, get_order, get_order_items, get_order_address, get_order_buyer_info)
+- FBA Inventory (get_summaries)
+- Pricing (get_competitive_pricing, get_listing_offers, get_item_offers)
+- Finances (list_transactions)
+- Sales (get_order_metrics)
+- Catalog (search_items, get_item)
+- Reports (create_report, get_report, get_report_document, create_and_download, get_reports)
+- Feeds (create_feed_document, create_feed, get_feed, get_feed_document)
+- Listings (get/put/patch/delete listings_item)
+- Notifications (get/create subscriptions, get/create destinations)
+- Meta (health_check, get_config, rate_limit_status)
 
-* [Invite team members and collaborators](https://docs.gitlab.com/user/project/members/)
-* [Create a new merge request](https://docs.gitlab.com/user/project/merge_requests/creating_merge_requests/)
-* [Automatically close issues from merge requests](https://docs.gitlab.com/user/project/issues/managing_issues/#closing-issues-automatically)
-* [Enable merge request approvals](https://docs.gitlab.com/user/project/merge_requests/approvals/)
-* [Set auto-merge](https://docs.gitlab.com/user/project/merge_requests/auto_merge/)
+### Vendor-Only (~6 tools in current build)
+- Vendor Orders (get_purchase_orders, get_purchase_order, submit_acknowledgement)
+- Vendor Shipments (submit_shipments)
+- Vendor Invoices (submit_invoices)
 
-## Test and Deploy
+## Development
 
-Use the built-in continuous integration in GitLab.
+```bash
+# Run in development mode (tsx, no build step)
+npm run dev -- --config ./config.example.json
 
-* [Get started with GitLab CI/CD](https://docs.gitlab.com/ci/quick_start/)
-* [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/user/application_security/sast/)
-* [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/topics/autodevops/requirements/)
-* [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/user/clusters/agent/)
-* [Set up protected environments](https://docs.gitlab.com/ci/environments/protected_environments/)
+# Run tests
+npm test
 
-***
+# Lint
+npm run lint
+```
 
-# Editing this README
+## Architecture
 
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
-
-## Suggestions for a good README
-
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
-
-## Name
-Choose a self-explaining name for your project.
-
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
-
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
-
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
-
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
-
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
-
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
-
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
-
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
-
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
-
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
-
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
+```
+src/
+├── index.ts              ← Entry point
+├── config/               ← Configuration loading & validation
+├── auth/                 ← LWA OAuth2 token management
+├── clients/              ← SP-API HTTP client with rate limiting
+├── tools/                ← MCP tool definitions
+│   ├── meta/             ← Health check, config, rate limits
+│   ├── seller/           ← Seller-only API tools
+│   ├── shared/           ← Shared API tools (Seller + Vendor)
+│   └── vendor/           ← Vendor-only API tools
+├── transport/            ← MCP transport layer (stdio, SSE future)
+└── utils/                ← Logger, helpers
+```
 
 ## License
-For open source projects, say how it is licensed.
 
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+MIT
