@@ -8,11 +8,14 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "dev": "tsx src/index.ts",
-    "lint": "eslint src/",
-    "test": "vitest run",
-    "test:watch": "vitest"
+    "lint": "eslint src/"
   },
-  "keywords": ["mcp", "sp-api", "amazon", "selling-partner"],
+  "keywords": [
+    "mcp",
+    "sp-api",
+    "amazon",
+    "selling-partner"
+  ],
   "author": "Manikanta Gona Grafsgaard",
   "license": "MIT",
   "dependencies": {
@@ -27,8 +30,7 @@
     "eslint": "^9.39.0",
     "tsx": "^4.22.4",
     "typescript": "^5.7.3",
-    "vitest": "^3.2.6",
-    "nock": "^14.0.1"
+    "typescript-eslint": "^8.70.0"
   },
   "engines": {
     "node": ">=18.0.0"
